@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+
+  module:
+    build:
+      context: .
+    # networks:
+    #   - smad-modules-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data:/data
+
+# networks:
+#   smad-modules-net:
+#     driver: bridge
