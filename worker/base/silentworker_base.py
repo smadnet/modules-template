@@ -258,10 +258,11 @@ class SilentWorkerBase(Producer):
         if input_format in ['filepath', 'folderpath']: #? input_data is filepath or folderpath
             if not os.path.exists(input_data): #? only refine if path not found
                 log(f'[!] {input_data} not found. Refining path...', 'warning')
-                input_data = os.path.join(self.module_indir, os.path.basename(input_data))
-                if not os.path.exists(input_data):
-                    log(f'[x] {input_data} not exist', 'warning')
-                return input_data
+                input_data_ = os.path.join(self.module_indir, os.path.basename(input_data))
+                if not os.path.exists(input_data_):
+                    log(f'[x] {input_data_} not exist', 'warning')
+                    return input_data
+                return input_data_
 
         elif isinstance(input_format, list):
             for k in range(len(input_format)): #? loop through each output
@@ -269,9 +270,12 @@ class SilentWorkerBase(Producer):
                 if input_format[k] in ['filepath', 'folderpath']:
                     if not os.path.exists(input_data): #? only refine if path not found
                         log(f'[!] {input_data[k]} not found. Refining path...', 'warning')
-                        input_data[k] = os.path.join(self.module_indir, os.path.basename(input_data[k]))
-                        if not os.path.exists(input_data[k]):
-                            log(f'[x] {input_data[k]} not exist', 'warning')
+                        input_data_ = os.path.join(self.module_indir, os.path.basename(input_data[k]))
+                        if not os.path.exists(input_data_):
+                            log(f'[x] {input_data_} not exist', 'warning')
+                            #? keep input_data[k] as is
+                        else:
+                            input_data[k] = input_data_
             return input_data
         
         return input_data
@@ -284,15 +288,27 @@ class SilentWorkerBase(Producer):
         It bases on the `module_input_format` (this module's config), and the `output_format` of the message
         """
         if 'output_format' in msg:
-            if msg['output_format'] in ['filepath', 'folderpath'] or (isinstance(msg['output_format'], list) and ('filepath' in msg['output_format'] or 'folderpath' in msg['output_format'])):
+            if isinstance(msg['output_format'], str) and msg['output_format'] in ['filepath', 'folderpath']:
                 # log(f'[ ][__recheck_input_filepath__] Updating path, as prior module output_format is: '+ msg['output_format'])
                 for i in range(len(paths)):
                     paths[i] = self.__recheck_input_filepath_fcn__(paths[i], msg['output_format'])
+            # elif isinstance(msg['output_format'], list) and ('filepath' in msg['output_format'] or 'folderpath' in msg['output_format']):
+            elif isinstance(msg['output_format'], list) and len(msg['output_format']) == len(paths): #? only accept when len(output_format) == len(paths), otherwise format declared was wrong or data received was wrong
+                for i in range(len(paths)): #? paths[i] is actually an array of path
+                    for j in range(len(paths[i])):
+                        if msg['output_format'][j] in ['filepath', 'folderpath']:
+                            paths[i][j] = self.__recheck_input_filepath_fcn__(paths[i][j], msg['output_format'][j])
 
-        elif self.module_input_format in ['filepath', 'folderpath'] or (isinstance(self.module_input_format, list) and ('filepath' in self.module_input_format or 'folderpath' in self.module_input_format)):
-            # log(f'[ ][__recheck_input_filepath__] Updating path, as this module input_format is: {self.module_input_format}')
-            for i in range(len(paths)):
-                paths[i] = self.__recheck_input_filepath_fcn__(paths[i], self.module_input_format)
+        else:
+            if self.module_input_format in ['filepath', 'folderpath']:
+                # log(f'[ ][__recheck_input_filepath__] Updating path, as this module input_format is: {self.module_input_format}')
+                for i in range(len(paths)):
+                    paths[i] = self.__recheck_input_filepath_fcn__(paths[i], self.module_input_format)
+            elif isinstance(self.module_input_format, list) and len(self.module_input_format) == len(paths): #? only accept when len(output_format) == len(paths), otherwise format declared was wrong or data received was wrong
+                for i in range(len(paths)): #? paths[i] is actually an array of path
+                    for j in range(len(paths[i])):
+                        if self.module_input_format[j] in ['filepath', 'folderpath']:
+                            paths[i][j] = self.__recheck_input_filepath_fcn__(paths[i][j], self.module_input_format[j])
 
         return paths
 
@@ -380,8 +396,12 @@ class SilentWorkerBase(Producer):
                 self.__update_vars__(orig_hash, analysis_request_ids, modflow_code, msg['callback_flow'])
                 
                 #? double check input data
-                path = self.__recheck_input_filepath__([path], msg)[0]
-                log(f'[+][__onReceiveMsg__] Rechecked path: {path}')
+                if self.module_otype == 'file':
+                    path = self.__recheck_input_filepath__([path], msg)[0]
+                    log(f'[+][__onReceiveMsg__] Rechecked path: {path}')
+                    # if not os.path.isfile(path):
+                    #     log(f'[x][__onReceiveMsg__] {path} not exist', 'error')
+                    #     return False
 
                 #? process input
                 return self.__addInputToBatch__(orig_hash, orig_path, path, processCallbackFcn, config_data, num_per_batch)

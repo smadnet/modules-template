@@ -5,12 +5,16 @@ services:
   module:
     build:
       context: .
+    environment:
+      CONFIG_PATH: /module/config.json
     # networks:
     #   - smad-modules-net
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
+      # - ./:/module
       - ./data:/data
+      - ./config.json:/module/config.json
 
 # networks:
 #   smad-modules-net:

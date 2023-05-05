@@ -274,9 +274,10 @@ class Subscriber():
         consumer = KafkaConsumer(
             self.kafka_topic_name,
             bootstrap_servers=self.kafka_bootstrap_servers,
-            auto_offset_reset='earliest',
+            # auto_offset_reset='earliest',
             enable_auto_commit=True,
-            group_id=f'module_{self.module_code}',
+            # group_id=f'module_{self.module_code}',
+            group_id=f'modules',
             value_deserializer=lambda x: x.decode('utf-8')
         )
         log(f'[ ] Listening on {self.kafka_topic_name}')
@@ -314,12 +315,18 @@ class Subscriber():
 
                 #? is there any data sent along this ending message ?
                 if len(message.value) > 0:
-                    data = json.loads(message.value)
-                    self.__processMsg__(data)
+                    if sinkfile is True and len(filepath) > 0:
+                        message_value = message.value.replace(filepath, outpath)
+                        data = json.loads(message_value)
+                        self.__processMsg__(data)
+                    else:
+                        data = json.loads(message.value)
+                        self.__processMsg__(data)
             
             elif isend is False: #? not end yet
                 #? new chunk coming. decode content and store on machine
-                payload = base64.b64decode(message.value)
+                # payload = base64.b64decode(message.value)
+                payload = bytearray.fromhex(message.value)
                 if len(payload) > 0:
                     #? append to it then
                     open(outpath, 'ab').write(payload)

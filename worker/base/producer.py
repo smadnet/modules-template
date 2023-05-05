@@ -433,6 +433,10 @@ class Producer():
 
 
                 for mod_code, cflow in next_mods.items():
+                    if orig_hash not in module_resp['result']:
+                        log(f'[!][__taskNextModulesInferMode__] {orig_hash} not found in modules_resp', 'error')
+                        continue
+
                     mod = cflow[0]
                     #? construct message
                     msg = {
@@ -556,19 +560,25 @@ class Producer():
         if 'result' not in module_resp or module_resp['result'] is None or not isinstance(module_resp['result'], dict) or len(module_resp['result']) == 0:
             return False
 
-        msgs = []
+        # results = [] #? store all analysis results (all outputs)
+        # warnings = [] #? store only suspicious results (detector's outputs = 1)
+        # detected_objs = [] #? store detected objects' identifiers (hash, url, etc.)
         for orig_hash, orig_input in self._map_ohash_oinputs.items():
             if orig_hash not in self._map_ohash_requestids:
                 continue
 
             #? construct message
             for analysis_request_id in self._map_ohash_requestids[orig_hash]:
+                if orig_hash not in module_resp['result']:
+                    log(f'[!][__sendInferResults__] {orig_hash} not found in modules_resp', 'error')
+
                 # self.__publishFiles__(module_resp['result'], 'analysis_results') #? for `analysis_results` (received on Collector), no need to know the file
 
                 tmpar = analysis_request_id.split('--[')
                 domain_id = tmpar[1].split(']')[0]
                 capturer_id = tmpar[2].split(']')[0]
 
+                #* always push back analysis result
                 msg = {
                     'analysis_request_id': analysis_request_id,
                     'analysis_request_trainid': self._analysis_request_trainid,
@@ -580,24 +590,28 @@ class Producer():
                     'otype': self.module_otype,
                     'path': orig_input,
                     'hash': orig_hash,
-                    'output': module_resp['result'][orig_hash],
-                    'note': module_resp['note'][orig_hash] if 'note' in module_resp and module_resp['note'] is not None and orig_hash in module_resp['note'] else '',
+                    'output': module_resp['result'][orig_hash] if orig_hash in module_resp['result'] else 'ERROR',
+                    'note': module_resp['note'][orig_hash] if 'note' in module_resp and module_resp['note'] is not None and isinstance(module_resp['note'], dict) and orig_hash in module_resp['note'] else '',
                     'time_inserted': time.time(),
 
                     'output_format': self.module_output_format #? send my output's format so that the next module will know what to do with received data
                 }
-                #? adding to array to send all results for this batch at once
-                # log(f'[ ][__sendInferResults__] Adding result : {msg}')
-                msgs.append(msg)
+                #? check if the detector's result is 1. if so, it's suspicious
+                if self.module_type == 'detector' and orig_hash in module_resp['result'] and module_resp['result'][orig_hash] == 1: #? suspicious object
+                    msg['detected_objs'] = [orig_hash]
+
+                #? send to analysis_results topic
+                log(f'[ ][__sendInferResults__] Sending 1 result to topic `{domain_id}--analysis_results`')
+                msg2send = {
+                    'type': 'result',
+                    'data': msg
+                }
+                self.__produce_msg__('', msg2send, f'{domain_id}--analysis_results')
 
             #? del the hash from vars
             del self._map_ohash_requestids[orig_hash]
             # del self._map_ohash_oinputs[orig_hash]
             # del self._map_ohash_inputs[orig_hash]
-
-        #? send to analysis_results topic
-        log(f'[ ][__sendInferResults__] Sending {len(msgs)} results to topic `analysis_results`')
-        self.__produce_msg__('', msgs, 'analysis_results')
 
         #? if this module is configured to publish files to data centre (so that Data Centres can sink this module's output)
         if self._publish_file:
@@ -643,8 +657,12 @@ class Producer():
         #? pool the model ? (so that Data Centres can sink this model) (maybe no need)
         # self.__send_file__(self._topic2pool, module_resp['result'], False)
         #? send to analysis_results topic
-        log(f'[ ][__sendTrainResults__] Sending train results for analysis_request_id {self._analysis_request_trainid} to topic `analysis_results`')
-        self.__produce_msg__('',  msg, 'analysis_results')
+        msg2send = {
+            'type': 'result',
+            'data': msg
+        }
+        log(f'[#][__sendTrainResults__] Sending train results for analysis_request_id {self._analysis_request_trainid} to topic `analysis_results` (commented)')
+        # self.__produce_msg__('',  msg2send, f'{domain_id}--analysis_results')
 
         return True
 
@@ -657,7 +675,7 @@ class Producer():
 
         print(f'[ ][__send_file__] Sending {filepath} to {topic_name}')
 
-        headers = [('domain_id', self.domain_id.encode('utf-8'))]
+        headers = [('domain_id', ''.encode('utf-8'))]
         headers.append(('capturer_id', ''.encode('utf-8'))) #? not available for python code
         headers.append(('filepath', filepath.encode('utf-8')))
         headers.append(('isend', '0'.encode('utf-8')))
@@ -679,7 +697,12 @@ class Producer():
         #? finish sending this file, now if we need the receiving end to unzip this file, send a message with `isend`=True and `unzip`=True so that the puller know when the file is end and to unzip it. You can include a process signal if you want
         if unzip is True:
             # headers.append(('isend', 'True'.encode('utf-8')))
-            headers[3][1] = '1'.encode('utf-8')
+            # headers[3][1] = '1'.encode('utf-8')
+            #? tuple cannot be changed once defined. convert to list to update then convert back to tuple
+            headers_list = list(headers)
+            headers_list[3] = ('isend', '1'.encode('utf-8'))
+            headers = tuple(headers_list)
+            #? then append a field to signal the receiver end to unzip
             headers.append(('unzip', 'True'.encode('utf-8')))
             self.producer.send(topic_name, value=''.encode('utf-8'), headers=headers)
             self.producer.flush()
@@ -698,7 +721,10 @@ class Producer():
         if len(topic_name) == 0:
             topic_name = f'task_{module_code}'
 
-        headers = [('domain_id', ''.encode('utf-8'))] #! not available for module code yet
+        #? domain_id in header is to identified data is issued from which domain
+        #? here we process data of all domains in one (master) topic
+        #? after finishing we submit back to domains via different topics accordingly
+        headers = [('domain_id', ''.encode('utf-8'))]
         headers.append(('capturer_id', ''.encode('utf-8'))) #? not available for python code
         headers.append(('filepath', ''.encode('utf-8')))
         headers.append(('isend', '1'.encode('utf-8')))

@@ -1,7 +1,7 @@
 {
     "kafka_bootstrap_servers": ["207.148.66.72:9092"],
     "module_code": "REQUIRED",
-    "module_type": "sandbox|preprocessor|detector"
+    "module_type": "sandbox|preprocessor|detector",
     "module_otype": "file|url|traffic_header|traffic_netflow",
     "module_input_format": "filepath|folderpath|datastring|boolean|dict|[filepath,filepath,datastring]",
     "module_output_format": "filepath|folderpath|datastring|boolean|dict|[filepath,filepath,datastring]",

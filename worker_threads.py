@@ -32,4 +32,5 @@ def worker_thread2(worker):
 
 
 #! This has to be defined. An array of functions which you want to run as separate threads. If this is undefined, no declared functions defined in this file would be executed.
-worker_threads = [worker_thread1, worker_thread2]
+# worker_threads = [worker_thread1, worker_thread2]
+worker_threads = []

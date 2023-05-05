@@ -24,7 +24,7 @@ import os
 from utils.utils import log
 import threading
 from worker_threads import worker_threads
-
+import sys
 # open('worker.log', 'w').write('') #? reset log
 
 
@@ -33,10 +33,15 @@ Load configuration from config.json file.
 This file HAS TO exist and contain these information.
 This file will be provided when you create a module on the system.
 """
-if not os.path.isfile('config.json'):
+config_filepath = ''
+if len(sys.argv) > 1:
+    config_filepath = sys.argv[1]
+else:
+    config_filepath = os.path.join(os.environ['CONFIG_PATH'])
+if not os.path.isfile(config_filepath):
     log('Config file not exist', 'error')
     exit()
-__CONFIG__ = json.load(open('config.json'))
+__CONFIG__ = json.load(open(config_filepath))
 
 
 """
