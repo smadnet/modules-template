@@ -697,7 +697,7 @@ class Producer():
         #? finish sending this file, now if we need the receiving end to unzip this file, send a message with `isend`=True and `unzip`=True so that the puller know when the file is end and to unzip it. You can include a process signal if you want
         if unzip is True:
             # headers.append(('isend', 'True'.encode('utf-8')))
-            # headers[3][1] = '1'.encode('utf-8')
+            # headers[3] = ('isend', '1'.encode('utf-8'))
             #? tuple cannot be changed once defined. convert to list to update then convert back to tuple
             headers_list = list(headers)
             headers_list[3] = ('isend', '1'.encode('utf-8'))
