@@ -254,6 +254,7 @@ class SilentWorkerBase(Producer):
         This module's sinker has sinked the file to `module_indir`, we need to change the path to point to the folder on this module
         It bases on the `module_input_format` (this module's config), and the `output_format` of the message
         """
+        print(f'[__recheck_input_filepath_fcn__] input_data = {input_data} | input_format = {input_format}')
         # path = os.path.join(self.module_indir, os.path.basename(path))
         if input_format in ['filepath', 'folderpath']: #? input_data is filepath or folderpath
             if not os.path.exists(input_data): #? only refine if path not found
@@ -287,28 +288,33 @@ class SilentWorkerBase(Producer):
         This module's sinker has sinked the file to `module_indir`, we need to change the path to point to the folder on this module
         It bases on the `module_input_format` (this module's config), and the `output_format` of the message
         """
-        if 'output_format' in msg:
-            if isinstance(msg['output_format'], str) and msg['output_format'] in ['filepath', 'folderpath']:
-                # log(f'[ ][__recheck_input_filepath__] Updating path, as prior module output_format is: '+ msg['output_format'])
-                for i in range(len(paths)):
-                    paths[i] = self.__recheck_input_filepath_fcn__(paths[i], msg['output_format'])
-            # elif isinstance(msg['output_format'], list) and ('filepath' in msg['output_format'] or 'folderpath' in msg['output_format']):
-            elif isinstance(msg['output_format'], list) and len(msg['output_format']) == len(paths): #? only accept when len(output_format) == len(paths), otherwise format declared was wrong or data received was wrong
-                for i in range(len(paths)): #? paths[i] is actually an array of path
-                    for j in range(len(paths[i])):
-                        if msg['output_format'][j] in ['filepath', 'folderpath']:
-                            paths[i][j] = self.__recheck_input_filepath_fcn__(paths[i][j], msg['output_format'][j])
+        try:
+            if 'output_format' in msg:
+                print('[ ][__recheck_input_filepath__] msg[output_format] =', msg['output_format'])
+                if isinstance(msg['output_format'], str) and msg['output_format'] in ['filepath', 'folderpath']:
+                    # log(f'[ ][__recheck_input_filepath__] Updating path, as prior module output_format is: '+ msg['output_format'])
+                    for i in range(len(paths)):
+                        paths[i] = self.__recheck_input_filepath_fcn__(paths[i], msg['output_format'])
+                # elif isinstance(msg['output_format'], list) and ('filepath' in msg['output_format'] or 'folderpath' in msg['output_format']):
+                elif isinstance(msg['output_format'], list) and len(msg['output_format']) == len(paths): #? only accept when len(output_format) == len(paths), otherwise format declared was wrong or data received was wrong
+                    for i in range(len(paths)): #? paths[i] is actually an array of path
+                        for j in range(len(paths[i])):
+                            if msg['output_format'][j] in ['filepath', 'folderpath']:
+                                paths[i][j] = self.__recheck_input_filepath_fcn__(paths[i][j], msg['output_format'][j])
 
-        else:
-            if self.module_input_format in ['filepath', 'folderpath']:
-                # log(f'[ ][__recheck_input_filepath__] Updating path, as this module input_format is: {self.module_input_format}')
-                for i in range(len(paths)):
-                    paths[i] = self.__recheck_input_filepath_fcn__(paths[i], self.module_input_format)
-            elif isinstance(self.module_input_format, list) and len(self.module_input_format) == len(paths): #? only accept when len(output_format) == len(paths), otherwise format declared was wrong or data received was wrong
-                for i in range(len(paths)): #? paths[i] is actually an array of path
-                    for j in range(len(paths[i])):
-                        if self.module_input_format[j] in ['filepath', 'folderpath']:
-                            paths[i][j] = self.__recheck_input_filepath_fcn__(paths[i][j], self.module_input_format[j])
+            else:
+                print('[ ][__recheck_input_filepath__] self.module_input_format =', self.module_input_format)
+                if self.module_input_format in ['filepath', 'folderpath']:
+                    # log(f'[ ][__recheck_input_filepath__] Updating path, as this module input_format is: {self.module_input_format}')
+                    for i in range(len(paths)):
+                        paths[i] = self.__recheck_input_filepath_fcn__(paths[i], self.module_input_format)
+                elif isinstance(self.module_input_format, list) and len(self.module_input_format) == len(paths): #? only accept when len(output_format) == len(paths), otherwise format declared was wrong or data received was wrong
+                    for i in range(len(paths)): #? paths[i] is actually an array of path
+                        for j in range(len(paths[i])):
+                            if self.module_input_format[j] in ['filepath', 'folderpath']:
+                                paths[i][j] = self.__recheck_input_filepath_fcn__(paths[i][j], self.module_input_format[j])
+        except:
+            log(f'[!][__recheck_input_filepath__] Failed with exception')
 
         return paths
 

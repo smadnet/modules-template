@@ -266,9 +266,13 @@ class Producer():
         """
         next_mods = {}  #? next modules to task. a dict that maps next_module_code => the callback_flow for that next module
 
-        #? [1] => 1 | [[1,2]] => [1,2] | [0,[[1,3],2]] remains
-        while isinstance(callback_flow, list) and len(callback_flow) == 1:
-            callback_flow = callback_flow[0] #? prevent something like [[[[9]]]]
+        # #? [1] => 1 | [[1,2]] => [1,2] | [0,[[1,3],2]] remains
+        # while isinstance(callback_flow, list) and len(callback_flow) == 1:
+        #     callback_flow = callback_flow[0] #? prevent something like [[[[9]]]]
+        #? [1] => [1] | [[1,2]] => [1,2] | [[1]] => [1]
+        while isinstance(callback_flow, list) and len(callback_flow) == 1 and isinstance(callback_flow[0], list):
+            log(f'callback_flow[0] == list')
+            callback_flow = callback_flow[0] #? prevent something like [[[[9]]]] or [[1,2]]
 
         log(f'      [ ][__findNextModules__] callback_flow = {callback_flow}')
 
@@ -276,7 +280,7 @@ class Producer():
         if isinstance(callback_flow, list):  #? [1,2], [0,[[1,3],2]]
             log(f'      [ ][__findNextModules__] is list. Still something left in chain!')
             # if isinstance(callback_flow[0], str): #? first one must be a string
-            if isinstance(callback_flow[0], dict): #? actually, dict instead
+            if isinstance(callback_flow[0], dict): #? actually, dict (instead of string)
                 #? the first element of the callback_flow should be this module (as string, not array), so remove the first one. but just to be sure, double-check it
                 if callback_flow[0]['code'] == self.module_code:
                     #? eg. callback_flow = [0,[[1,3],2]]
@@ -286,11 +290,11 @@ class Producer():
                 else:  #? if not as expected, definitely something wrong
                     return None
 
-            else:  #? the first element of the callback_flow should be a string, and this module code. if it's not string, it's of wrong format. something's wrong
+            else:  #? the first element of the callback_flow should be a string (actually, a dict), and this module code. if it's not string, it's of wrong format. something's wrong
                 return None
 
         # elif isinstance(callback_flow, str): #? if there's only one module in the flow, it should be string and it should be this module itself.
-        elif isinstance(callback_flow, dict):  #? actually, dict instead
+        elif isinstance(callback_flow, dict):  #? actually, dict (instead of string)
             log(f'      [ ][__findNextModules__] is dict. One module left in chain!')
             if callback_flow['code'] == self.module_code:  #? it's this module
                 callback_flow = []  #? nothing left
@@ -303,22 +307,47 @@ class Producer():
         log(f'      [+][__findNextModules__] almost done. callback_flow = {callback_flow}')
 
         """ Now, in the remaining callback_flow, what modules should I sent to """
-        #? eg. new callback_flow = [[1,3],[2,[4,5]],[6,7,8],9]
+        #? [sbx-cuckoo, [[prp-cuckoo-mist], [prp-graph-malw, det-han]] ]
+        #? [1, [[2], [3,4]] ]
+        #? [sbx-cuckoo, prp-graph-malw, det-han]
+        #? [1, 2, 3]
+        #? => remaining chain:
+        #? [ [[prp-cuckoo-mist], [prp-graph-malw, det-han]] ]
+        #? [ prp-graph-malw, det-han ]
+        #? [ [[2], [3,4]] ]
+        #? [ 2, 3 ]
+        #? eg. new callback_flow = [ [0],[1,3],[2,[[4],[5]]],[6,7,8],[9] ]
         #? meaning, output of this module should be sent to:
+        #?  0
         #?  1->3        [1,3]
         #?  2->(4,5)    [2,[4,5]]
         #?  6->7->8     [6,7,8]
         #?  9           [9]
         for mods in callback_flow:
             # if isinstance(mods, str): #? eg. 9
-            if isinstance(mods, dict):  #? actually, dict instead
+            if isinstance(mods, dict):  #? actually, dict (instead of string)
                 next_mods[mods['code']] = [mods]
-            elif isinstance(mods, list):  #? [1,3], [2,[4,5]], [6,7,8]
-                # if isinstance(mods[0], str): #? the first module in the new callback_flow must be str. eg: 1 or 3. 2 or 4. 6
-                if isinstance(mods[0], dict):  #? actually, dict instead
+            elif isinstance(mods, list):  #? [0], [1,3], [2,[4,5],[6,7]], [8,[9,10]]
+                #? [ [[2], [3,4]] ]
+                #? [ 2, 3 ]
+                while isinstance(mods, list) and len(mods) == 1 and isinstance(mods[0], list):
+                    mods = mods[0] #? prevent something like [[[[9]]]] or [[1,2]]
+                #? turn to [[2], [3,4]]
+                #? [2,3]
+                if isinstance(mods[0], dict):  #? case of [2,3] (mods[0] = 2) - first module in mods is a dict (a module), then we need to task only 1 chain left (2->3)
                     next_mods[mods[0]['code']] = mods
-                else:  #? otherwise it's in the wrong format
-                    return None
+                elif isinstance(mods[0], list):  #? case of [[2], [3,4]] (mods[0] = [2]) - we need to task multiple chains ([2] and [3->4])
+                    for mod in mods: #? [2] and [3,4]
+                        if isinstance(mod[0], dict):  #? now at this level it must be a dict, otherwise it's wrong format (mod[0] = 2 or 3)
+                            next_mods[mod[0]['code']] = mod
+                        else:  #? otherwise it's in the wrong format
+                            return None
+
+                # # if isinstance(mods[0], str): #? the first module in the new callback_flow must be str. eg: 1 or 3. 2 or 4. 6
+                # if isinstance(mods[0], dict):  #? actually, dict (instead of string)
+                #     next_mods[mods[0]['code']] = mods
+                # else:  #? otherwise it's in the wrong format
+                #     return None
 
         return next_mods
 
@@ -697,13 +726,14 @@ class Producer():
         #? finish sending this file, now if we need the receiving end to unzip this file, send a message with `isend`=True and `unzip`=True so that the puller know when the file is end and to unzip it. You can include a process signal if you want
         if unzip is True:
             # headers.append(('isend', 'True'.encode('utf-8')))
-            # headers[3] = ('isend', '1'.encode('utf-8'))
-            #? tuple cannot be changed once defined. convert to list to update then convert back to tuple
-            headers_list = list(headers)
-            headers_list[3] = ('isend', '1'.encode('utf-8'))
-            headers = tuple(headers_list)
-            #? then append a field to signal the receiver end to unzip
-            headers.append(('unzip', 'True'.encode('utf-8')))
+            headers[3] = ('isend', '1'.encode('utf-8'))
+            headers.append(('unzip', '1'.encode('utf-8')))
+            # #? tuple cannot be changed once defined. convert to list to update then convert back to tuple
+            # headers_list = list(headers)
+            # headers_list[3] = ('isend', '1'.encode('utf-8'))
+            # #? then append a field to signal the receiver end to unzip
+            # headers_list.append(('unzip', '1'.encode('utf-8')))
+            # headers = tuple(headers_list)
             self.producer.send(topic_name, value=''.encode('utf-8'), headers=headers)
             self.producer.flush()
 

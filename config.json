@@ -1,5 +1,5 @@
 {
-    "kafka_bootstrap_servers": ["207.148.66.72:9092"],
+    "kafka_bootstrap_servers": ["172.17.0.1:9092"],
     "module_code": "REQUIRED",
     "module_type": "sandbox|preprocessor|detector",
     "module_otype": "file|url|traffic_header|traffic_netflow",
@@ -8,7 +8,7 @@
     "module_outdir": "/module_code/output",
     "module_indir": "/module_code/input",
     "publishing": {
-        "publish_file": true,
+        "publish_file": false,
         "chunk_size": 24570,
         "after_publish": "delete"
     }
