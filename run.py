@@ -1,5 +1,5 @@
 # Copyright 2022 by Minh Nguyen. All rights reserved.
-#     @author Minh Tu Nguyen
+#     @author Minh Nguyen
 #     @email  nmtu.mia@gmail.com
 # 
 # Licensed under the Apache License, Version 2.0 (the "License"): you may
