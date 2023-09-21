@@ -466,6 +466,10 @@ class Producer():
                         log(f'[!][__taskNextModulesInferMode__] {orig_hash} not found in modules_resp', 'error')
                         continue
 
+                    if orig_hash not in self._map_ohash_oinputs:
+                        log(f'[!][__taskNextModulesInferMode__] {orig_hash} not found in self._map_ohash_oinputs = {self._map_ohash_oinputs}', 'error')
+                        continue
+
                     mod = cflow[0]
                     #? construct message
                     msg = {
