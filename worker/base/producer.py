@@ -434,6 +434,7 @@ class Producer():
             if orig_hash not in self._map_ohash_requestids:
                 continue
 
+            print(f'[ ][__taskNextModulesInferMode__] self._map_ohash_modflow[orig_hash] = {self._map_ohash_modflow[orig_hash]}')
             for modflow_code in self._map_ohash_modflow[orig_hash]:
                 requestids = '*'.join(self._map_ohash_requestids[orig_hash])
                 try:
